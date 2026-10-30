@@ -62,6 +62,22 @@ def recognize(img, word_length):
             for t in text_rows(crop,x0+int((x1-x0)*.26),7):
                 t['y']+=max(0,y0-3)
                 tokens.append(t)
+    # A punctuation-preserving pass is essential for Fallout-style terminal
+    # screenshots: forcing a letters-only whitelist can erase entire words.
+    for x0,x1 in ((0,w//2),(w//2,w)):
+        crop=img[:,x0:x1]
+        enlarged=cv2.resize(crop,None,fx=3,fy=3,interpolation=cv2.INTER_CUBIC)
+        for psm in (6,11):
+            data=pytesseract.image_to_data(enlarged,config=f'--oem 3 --psm {psm}',output_type=pytesseract.Output.DICT)
+            for i,raw in enumerate(data['text']):
+                conf=float(data['conf'][i])
+                if conf<0: continue
+                # Keep punctuation as boundaries, but also extract embedded
+                # letter runs, e.g. "-DONGLE\\;" or "###CHARGE_&".
+                for match in re.finditer(r'[A-Za-z]{3,}',raw):
+                    word=match.group().upper()
+                    tokens.append({'text':word,'x':x0+int(data['left'][i]/3),
+                                   'y':int(data['top'][i]/3),'confidence':conf})
     # De-duplicate OCR passes by location and token.
     unique = {}
     for t in tokens:
@@ -99,6 +115,16 @@ def recognize(img, word_length):
         for n in range(1,word_length):
             word=a['text'][-n:]+b['text'][:word_length-n]
             if word in WORDS: add(word,min(a['confidence'],b['confidence'])-30,'possible wrap')
+    # Full-row OCR can recover complete known words even when the tokenizer
+    # merges the terminal's surrounding punctuation into a single token.
+    for x0,x1 in ((0,w//2),(w//2,w)):
+        crop=cv2.resize(img[:,x0:x1],None,fx=3,fy=3,interpolation=cv2.INTER_CUBIC)
+        raw=pytesseract.image_to_string(crop,config='--oem 3 --psm 6').upper()
+        for line in raw.splitlines():
+            compact=re.sub('[^A-Z]','',line)
+            for word in WORDS:
+                if len(word)==word_length and word in compact:
+                    add(word,70,'raw OCR')
     result=sorted(candidates.values(),key=lambda t:(-t['confidence'],t['word']))
     return {'words':result,'tokens':tokens[:180],'dictionary_size':len(WORDS),
             'note':'OCR results are suggestions. Check each word against the screenshot.'}
