@@ -144,6 +144,13 @@ placeholder="DONGLE&#10;CHARGE&#10;CASINO"></textarea>
 <h3>Guess History</h3>
 <div id="history"></div>
 </section>
+<section class="panel" id="ecuPanel">
+<h2>ECU Bit Solver</h2><p class="muted">Enter current and target hexadecimal bytes for both registers. Select allowed operations.</p>
+<div class="actions"><label>R0 current <input id="r0c" value="00" maxlength="2"></label><label>R0 target <input id="r0t" value="00" maxlength="2"></label><label>R1 current <input id="r1c" value="00" maxlength="2"></label><label>R1 target <input id="r1t" value="00" maxlength="2"></label></div>
+<label>XOR masks (hex, comma-separated) <input id="ecuMasks" value="59,8F"></label>
+<div class="actions"><label><input type="checkbox" id="ecuNot" checked> NOT</label><label><input type="checkbox" id="ecuRol"> ROL 1</label><label><input type="checkbox" id="ecuRor"> ROR 1</label><label>Max operations <input id="ecuMax" type="number" value="8" min="1" max="15"></label></div>
+<button id="ecuSolve" class="primary">Solve ECU</button><pre id="ecuResult" style="white-space:pre-wrap"></pre>
+</section>
 </main>
 
 <script>
@@ -166,7 +173,7 @@ function loadImage(file) {
   screenshot = file;
   $("preview").src = URL.createObjectURL(file);
   $("preview").style.display = "block";
-  status("Screenshot loaded. Click Scan Screenshot.");
+  status("Screenshot loaded. Scanning automatically..."); scanScreenshot();
 }
 
 $("drop").onclick = () => $("file").click();
@@ -225,7 +232,7 @@ $("clear").onclick = () => {
   status("Waiting for screenshot.");
 };
 
-$("scan").onclick = async () => {
+async function scanScreenshot() {
   if (!screenshot) {
     status("Paste a screenshot first.");
     return;
@@ -237,7 +244,7 @@ $("scan").onclick = async () => {
   form.append("file", screenshot);
 
   try {
-    const response = await fetch("/api/ocr", {
+    const response = await fetch("/api/ocr?word_length=6", {
       method: "POST",
       body: form
     });
@@ -249,6 +256,7 @@ $("scan").onclick = async () => {
     const data = await response.json();
 
     let words = data.words || data.candidates || (data.tokens || []).map(t => t.text).filter(w => /^[A-Z]{4,12}$/.test(w));
+    words = words.map(w => typeof w === "string" ? w : w.word || w.text || "").filter(Boolean);
 
     if (typeof words === "string") {
       words = words.split(/\s+/);
@@ -258,13 +266,14 @@ $("scan").onclick = async () => {
       words = [];
     }
 
-    $("words").value = words.join("\n");
+    $("words").value = [...new Set(words)].join("\n");
     status("Scan complete: " + words.length + " words detected.");
   } catch (error) {
     status("Scan failed: " + error.message +
       ". Check your backend OCR endpoint.");
   }
-};
+}
+$("scan").onclick = scanScreenshot;
 
 function likeness(a, b) {
   let count = 0;
@@ -373,6 +382,26 @@ $("submit").onclick = () => {
 };
 
 $("reset").onclick = () => $("start").click();
+</script>
+<script>
+document.getElementById('ecuSolve').onclick=()=>{
+const $=id=>document.getElementById(id), hex=id=>{const v=$(id).value.trim();return /^[0-9a-fA-F]{1,2}$/.test(v)?parseInt(v,16):NaN};
+const start=[hex('r0c'),hex('r1c')],target=[hex('r0t'),hex('r1t')];
+if([...start,...target].some(x=>!Number.isInteger(x))){$('ecuResult').textContent='Enter valid hexadecimal bytes (00 to FF).';return}
+const masks=$('ecuMasks').value.split(/[\s,;]+/).filter(Boolean).map(x=>parseInt(x.replace(/^0x/i,''),16));
+if(masks.some(x=>!Number.isInteger(x)||x<0||x>255)){$('ecuResult').textContent='Invalid XOR mask.';return}
+const ops=[...new Set(masks)].map(m=>['XOR '+m.toString(16).toUpperCase().padStart(2,'0'),v=>v^m]);
+if($('ecuNot').checked)ops.push(['NOT',v=>v^255]);
+if($('ecuRol').checked)ops.push(['ROL 1',v=>((v<<1)|(v>>7))&255]);
+if($('ecuRor').checked)ops.push(['ROR 1',v=>((v>>1)|(v<<7))&255]);
+const max=Math.min(15,Math.max(1,Number($('ecuMax').value)||8));
+const encode=v=>(v[0]<<8)|v[1],q=[{v:start,steps:[]}],seen=new Set([encode(start)]);
+let found=null;
+for(let i=0;i<q.length;i++){const cur=q[i];if(cur.v[0]===target[0]&&cur.v[1]===target[1]){found=cur.steps;break}if(cur.steps.length>=max)continue;
+for(let r=0;r<2;r++)for(const [label,fn] of ops){const next=cur.v.slice(),before=next[r];next[r]=fn(before);const key=encode(next);if(seen.has(key))continue;seen.add(key);
+q.push({v:next,steps:[...cur.steps,'R'+r+' → '+label+' ('+before.toString(16).toUpperCase().padStart(2,'0')+' → '+next[r].toString(16).toUpperCase().padStart(2,'0')+')']})}}
+$('ecuResult').textContent=found?(found.length?found.map((s,i)=>(i+1)+'. '+s).join('\n'):'Already solved.'):'No solution found within '+max+' operations.';
+};
 </script>
 </body>
 </html>
