@@ -1,93 +1,125 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Neptune ECU Solver</title>
+<title>Nightzoom // ECU Solver</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,Arial,sans-serif}*{box-sizing:border-box}
-body{margin:0;background:#090d19;color:#eef2ff;padding:22px}
-main{max-width:900px;margin:auto}h1{color:#b49aff}.muted{color:#aab5cc}
-.panel,.register{background:#151b2c;border:1px solid #343b55;border-radius:14px;padding:20px;margin:16px 0}
-.register{background:#101729}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
-.bits{display:flex;gap:5px;margin:12px 0;flex-wrap:nowrap}
-.bit{flex:1;min-width:0;height:53px;font:700 20px monospace;padding:0}
-.bit.on{background:#6d28d9;border-color:#c4b5fd}
-button,input{background:#222b42;color:#fff;border:1px solid #46516b;border-radius:8px;padding:10px;font-size:15px}
-button{cursor:pointer}button:hover{border-color:#a78bfa}.primary{background:#6d28d9;border-color:#8b5cf6}
-.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:14px 0}
-label{display:inline-flex;align-items:center;gap:6px}input[type=number]{width:75px}
-input[type=text]{width:160px}.hex{font-family:monospace;color:#c4b5fd}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+:root{color-scheme:dark;--bg:#070a14;--panel:#111525;--edge:#2e3552;--purple:#9d65ff;--cyan:#58e3ff;--muted:#a2abc5}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 80% 0%,#2d164b 0%,transparent 38%),radial-gradient(ellipse at 0% 65%,#09253c 0%,transparent 38%),var(--bg);color:#eef1ff;font:15px system-ui,Segoe UI,sans-serif}
+main{max-width:1150px;margin:auto;padding:28px 20px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0 26px;border-bottom:1px solid var(--edge);margin-bottom:22px}
+.eyebrow{font-size:12px;letter-spacing:3px;color:var(--cyan);font-weight:800}
+h1{margin:5px 0 0;font-size:clamp(25px,4vw,39px);letter-spacing:1px}h1 span{color:var(--purple)}
+.muted{color:var(--muted);line-height:1.55}
+.tag{border:1px solid #4a3673;color:#d3b9ff;padding:8px 12px;border-radius:50px;font-size:12px;font-weight:700}
+.panel,.register{background:linear-gradient(145deg,#161a2d,#0d1220);border:1px solid var(--edge);border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 12px 30px #0003}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.register{margin:0}.reghead{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}
+.reghead h2{margin:0;font-size:20px}.label{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:750}
+.value-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 7px}
+.hex{width:94px;text-align:center;font:700 17px ui-monospace,Consolas,monospace;color:var(--cyan);background:#080e1d;border:1px solid #384360;border-radius:8px;padding:9px}
+.targethex{color:#e6b5ff}
+.bits{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px;margin-bottom:21px}
+.bit{height:52px;min-width:0;padding:0;font:800 19px ui-monospace,Consolas,monospace;background:#1c2339;border:1px solid #3b4763;border-radius:8px;color:#8390b0;transition:background .12s,border-color .12s}
+.bit.on{background:#6840ad;border-color:#c095ff;color:#fff;box-shadow:0 0 16px #8f4eff35}
+.bit.target.on{background:#176e8c;border-color:#66e5ff;color:#e5faff;box-shadow:0 0 16px #39d5ff30}
+button,input{font:inherit;color:#fff}button{cursor:pointer}button:hover{filter:brightness(1.17)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+input[type=text],input[type=number]{background:#0a1020;border:1px solid #465170;border-radius:8px;padding:10px}
+input[type=text]{width:80px}input[type=number]{width:72px}
+.controls{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin:16px 0}
+.controls label{display:inline-flex;align-items:center;gap:8px}
+input[type=checkbox]{accent-color:#9d65ff;width:16px;height:16px}
+.primary,.secondary{border-radius:9px;padding:12px 20px;font-weight:800;border:1px solid #9465eb}
+.primary{background:linear-gradient(110deg,#7339d0,#9a4bea)}.secondary{background:#22283e;border-color:#485373}
+.section-title{display:flex;align-items:center;gap:12px;font-size:20px;margin:0 0 16px}
+.stepnum{display:inline-grid;place-items:center;width:29px;height:29px;border-radius:8px;background:#3e276b;color:#d5b9ff;font-size:14px}
+#result{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9;background:#080d19;border:1px solid #303b56;border-radius:10px;padding:17px;min-height:76px;font:14px ui-monospace,Consolas,monospace}
+@media(max-width:720px){.grid{grid-template-columns:1fr}main{padding:15px}.panel,.register{padding:16px}.bit{height:47px;font-size:16px}.tag{display:none}}
 </style></head><body><main>
-<h1>Neptune ECU Bit Solver</h1>
-<p class="muted">Click each bit to toggle between 0 and 1. The leftmost bit is 128; the rightmost is 1. Set both current and target values, then solve.</p>
-<div id="registers" class="grid"></div>
-<section class="panel">
-<h2>Allowed operations</h2>
-<div class="controls"><label>XOR masks (hex) <input id="masks" type="text" value="59,8F"></label>
-<label><input id="allowNot" type="checkbox" checked> NOT</label>
-<label><input id="allowRol" type="checkbox"> ROL 1</label>
-<label><input id="allowRor" type="checkbox"> ROR 1</label>
-<label>Max steps <input id="maxSteps" type="number" min="1" max="15" value="8"></label></div>
-<div class="controls"><button id="solve" class="primary">Solve ECU</button><button id="clear">Clear bits</button></div>
-<pre id="result" aria-live="polite">Set the bits above to begin.</pre>
-</section></main>
+<header><div><div class="eyebrow">NIGHTZOOM // UTILITIES</div><h1>ECU <span>BIT SOLVER</span></h1><p class="muted">Interactive register editor · Click a bit to toggle it or enter a hex byte.</p></div><div class="tag">NEPTUNE TOOLS</div></header>
+<section class="panel"><h2 class="section-title"><span class="stepnum">01</span> Set registers and targets</h2><p class="muted">Purple = current bit set to 1 · Cyan = target bit set to 1 · Leftmost bit is 128, rightmost bit is 1.</p><div id="registers" class="grid"></div></section>
+<section class="panel"><h2 class="section-title"><span class="stepnum">02</span> Available operations</h2>
+<div class="controls"><label>XOR #1 <input id="xor1" type="text" value="D2" maxlength="4" aria-label="First XOR mask"></label><label>XOR #2 <input id="xor2" type="text" value="8A" maxlength="4" aria-label="Second XOR mask"></label>
+<label><input id="allowNot" type="checkbox" checked> NOT</label><label><input id="allowRol" type="checkbox"> ROL 1</label><label><input id="allowRor" type="checkbox"> ROR 1</label><label>Max moves <input id="maxSteps" type="number" min="1" max="20" value="7"></label></div>
+<p class="muted">Each operation affects one register per move. The solver finds a shortest valid sequence within your move limit.</p>
+<div class="controls"><button id="solve" class="primary">SOLVE BITS</button><button id="example" class="secondary">Load example</button><button id="clear" class="secondary">Clear bits</button></div></section>
+<section class="panel"><h2 class="section-title"><span class="stepnum">03</span> Solution steps</h2><div id="result" role="status" aria-live="polite">Set your values, then select SOLVE BITS.</div></section>
+</main>
 <script>
-(() => {
+(()=>{
 const $=id=>document.getElementById(id);
-const values={r0c:0,r0t:0,r1c:0,r1t:0};
-const labels=[["r0c","R0 — Current"],["r0t","R0 — Target"],["r1c","R1 — Current"],["r1t","R1 — Target"]];
-for(const [id,label] of labels){
- const box=document.createElement("section");box.className="register";
- const title=document.createElement("h2");title.textContent=label+" ";
- const hex=document.createElement("span");hex.className="hex";hex.id=id+"Hex";title.appendChild(hex);box.appendChild(title);
- const row=document.createElement("div");row.className="bits";row.setAttribute("role","group");row.setAttribute("aria-label",label);
- for(let bit=7;bit>=0;bit--){
-  const btn=document.createElement("button");btn.className="bit";btn.type="button";
-  btn.dataset.register=id;btn.dataset.bit=String(bit);btn.setAttribute("aria-label",label+" bit "+bit);
-  btn.addEventListener("click",()=>{values[id]^=1<<bit;refresh();});row.appendChild(btn);
- }
- box.appendChild(row);$("registers").appendChild(box);
-}
-function refresh(){
- for(const [id] of labels){
-  $(id+"Hex").textContent="0x"+values[id].toString(16).toUpperCase().padStart(2,"0");
-  for(const btn of document.querySelectorAll('[data-register="'+id+'"]')){
-   const on=Boolean(values[id]&(1<<Number(btn.dataset.bit)));
-   btn.textContent=on?"1":"0";btn.classList.toggle("on",on);btn.setAttribute("aria-pressed",String(on));
+const registers=[{name:"R0",current:0xB2,target:0x39},{name:"R1",current:0x3C,target:0xC3}];
+const hex=n=>"0x"+n.toString(16).toUpperCase().padStart(2,"0");
+const parse=s=>{s=s.trim().replace(/^0x/i,"");return /^[0-9a-f]{1,2}$/i.test(s)?parseInt(s,16):null};
+function render(){
+ const root=$("registers");root.replaceChildren();
+ for(const reg of registers){
+  const box=document.createElement("section");box.className="register";
+  const head=document.createElement("div");head.className="reghead";
+  const title=document.createElement("h2");title.textContent=reg.name;
+  const detail=document.createElement("span");detail.className="label";detail.textContent="8-BIT REGISTER";
+  head.append(title,detail);box.append(head);
+  for(const type of ["current","target"]){
+   const line=document.createElement("div");line.className="value-row";
+   const label=document.createElement("label");label.className="label";label.textContent=type==="current"?"CURRENT VALUE":"TARGET VALUE";
+   const input=document.createElement("input");input.type="text";input.className="hex"+(type==="target"?" targethex":"");input.value=hex(reg[type]);input.maxLength=4;
+   input.setAttribute("aria-label",reg.name+" "+type+" hexadecimal value");
+   input.addEventListener("change",()=>{const n=parse(input.value);if(n===null){input.value=hex(reg[type]);input.setCustomValidity("Enter 00 through FF");input.reportValidity();input.setCustomValidity("");return;}reg[type]=n;render();});
+   line.append(label,input);box.append(line);
+   const bits=document.createElement("div");bits.className="bits";bits.setAttribute("role","group");bits.setAttribute("aria-label",reg.name+" "+type+" bits");
+   for(let bit=7;bit>=0;bit--){
+    const on=!!(reg[type]&(1<<bit)),btn=document.createElement("button");btn.type="button";btn.className="bit"+(on?" on":"")+(type==="target"?" target":"");
+    btn.textContent=on?"1":"0";btn.title="Bit value "+(1<<bit);btn.setAttribute("aria-label",reg.name+" "+type+" bit "+(1<<bit));btn.setAttribute("aria-pressed",String(on));
+    btn.addEventListener("click",()=>{reg[type]^=1<<bit;render();});bits.append(btn);
+   }
+   box.append(bits);
   }
+  root.append(box);
  }
- $("result").textContent="Ready to solve.";
 }
-$("clear").onclick=()=>{for(const id in values)values[id]=0;refresh();};
-$("solve").onclick=()=>{
- const start=[values.r0c,values.r1c],target=[values.r0t,values.r1t];
- const input=$("masks").value.trim();
- const parts=input?input.split(/[\s,;]+/).filter(Boolean):[];
- if(parts.some(v=>!/^(?:0x)?[0-9a-f]{1,2}$/i.test(v))){
-  $("result").textContent="Invalid XOR masks. Use hexadecimal bytes like 59,8F.";return;
+function operations(){
+ const ops=[];
+ for(const id of ["xor1","xor2"]){
+  const value=$(id).value;if(!value.trim())continue;
+  const mask=parse(value);if(mask===null)throw Error("Invalid XOR mask: "+value);
+  if(!ops.some(op=>op.name==="XOR "+hex(mask)))ops.push({name:"XOR "+hex(mask),fn:x=>x^mask});
  }
- const masks=[...new Set(parts.map(v=>parseInt(v.replace(/^0x/i,""),16)))];
- const ops=masks.map(m=>["XOR 0x"+m.toString(16).toUpperCase().padStart(2,"0"),v=>v^m]);
- if($("allowNot").checked)ops.push(["NOT",v=>v^255]);
- if($("allowRol").checked)ops.push(["ROL 1",v=>((v<<1)|(v>>7))&255]);
- if($("allowRor").checked)ops.push(["ROR 1",v=>((v>>1)|(v<<7))&255]);
- const max=Math.min(15,Math.max(1,Number($("maxSteps").value)||8));
- const key=v=>(v[0]<<8)|v[1];
- const queue=[{v:start,steps:[]}],seen=new Set([key(start)]);
- let answer=null;
+ if($("allowNot").checked)ops.push({name:"NOT",fn:x=>x^255});
+ if($("allowRol").checked)ops.push({name:"ROL 1",fn:x=>((x<<1)|(x>>7))&255});
+ if($("allowRor").checked)ops.push({name:"ROR 1",fn:x=>((x>>1)|(x<<7))&255});
+ return ops;
+}
+function shortestPath(from,to,ops){
+ if(from===to)return [];
+ const queue=[from],visited=new Set([from]),previous=new Map();
  for(let i=0;i<queue.length;i++){
-  const node=queue[i];
-  if(key(node.v)===key(target)){answer=node.steps;break;}
-  if(node.steps.length>=max)continue;
-  for(let r=0;r<2;r++)for(const [name,fn] of ops){
-   const next=node.v.slice();const before=next[r];next[r]=fn(before);
-   const k=key(next);if(seen.has(k))continue;seen.add(k);
-   const hx=v=>v.toString(16).toUpperCase().padStart(2,"0");
-   queue.push({v:next,steps:[...node.steps,"R"+r+" → "+name+" (0x"+hx(before)+" → 0x"+hx(next[r])+")"]});
+  const value=queue[i];
+  for(const op of ops){
+   const next=op.fn(value);if(visited.has(next))continue;
+   visited.add(next);previous.set(next,{from:value,name:op.name});
+   if(next===to){
+    const path=[];let at=to;
+    while(previous.has(at)){const step=previous.get(at);path.push({name:step.name,from:step.from,to:at});at=step.from;}
+    return path.reverse();
+   }
+   queue.push(next);
   }
  }
- $("result").textContent=answer===null?"No solution within "+max+" steps using the selected operations.":
- answer.length===0?"Already solved.":answer.map((step,i)=>(i+1)+". "+step).join("\n");
-};
-refresh();
+ return null;
+}
+$("solve").addEventListener("click",()=>{
+ try{
+  const max=Number($("maxSteps").value);if(!Number.isInteger(max)||max<1||max>20)throw Error("Max moves must be 1–20.");
+  const ops=operations();if(!ops.length)throw Error("Enable at least one operation.");
+  const paths=registers.map(r=>shortestPath(r.current,r.target,ops));
+  if(paths.some(p=>p===null)){ $("result").textContent="No solution exists using the selected operations.";return; }
+  const count=paths.reduce((sum,p)=>sum+p.length,0);
+  if(count>max){$("result").textContent="Shortest solution needs "+count+" moves; your limit is "+max+". Try other allowed operations.";return;}
+  const steps=[];paths.forEach((path,i)=>path.forEach(step=>steps.push(registers[i].name+" → "+step.name+"    ("+hex(step.from)+" → "+hex(step.to)+")")));
+  $("result").textContent=steps.length?steps.map((step,i)=>(i+1)+". "+step).join("\n"):"Already solved — both registers match their targets.";
+ }catch(err){$("result").textContent=err.message;}
+});
+$("clear").addEventListener("click",()=>{registers.forEach(r=>{r.current=0;r.target=0;});render();$("result").textContent="All bits cleared.";});
+$("example").addEventListener("click",()=>{registers[0].current=0xB2;registers[0].target=0x39;registers[1].current=0x3C;registers[1].target=0xC3;$("xor1").value="D0";$("xor2").value="8B";$("allowNot").checked=true;$("allowRol").checked=false;$("allowRor").checked=false;$("maxSteps").value=5;render();$("solve").click();});
+render();
 })();
 </script></body></html>
