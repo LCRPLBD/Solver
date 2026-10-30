@@ -256,18 +256,13 @@ async function scanScreenshot() {
     const data = await response.json();
 
     let words = data.words || data.candidates || (data.tokens || []).map(t => t.text).filter(w => /^[A-Z]{4,12}$/.test(w));
+    if (typeof words === "string") words = words.split(/\s+/);
+    if (!Array.isArray(words)) words = [];
     words = words.map(w => typeof w === "string" ? w : w.word || w.text || "").filter(Boolean);
 
-    if (typeof words === "string") {
-      words = words.split(/\s+/);
-    }
-
-    if (!Array.isArray(words)) {
-      words = [];
-    }
-
     $("words").value = [...new Set(words)].join("\n");
-    status("Scan complete: " + words.length + " words detected.");
+    status("Scan complete: " + words.length + " possible words. Review before guessing.");
+    if (words.length) $("start").click();
   } catch (error) {
     status("Scan failed: " + error.message +
       ". Check your backend OCR endpoint.");
