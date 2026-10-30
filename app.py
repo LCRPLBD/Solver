@@ -44,6 +44,24 @@ def recognize(img, word_length):
         for mask in (white, cv2.bitwise_or(white, green)):
             for psm in (6,11):
                 tokens.extend(text_rows(mask[:,x0:x1], x0, psm))
+    # Read short terminal rows separately: full-column OCR tends to return no
+    # useful tokens when punctuation surrounds each candidate word.
+    for x0,x1 in ((0,w//2),(w//2,w)):
+        region=white[:,x0:x1]
+        density=np.count_nonzero(region,axis=1)
+        active=np.flatnonzero(density>=3)
+        bands=[]
+        for y in active:
+            if not bands or y-bands[-1][-1]>7: bands.append([int(y)])
+            else: bands[-1].append(int(y))
+        for band in bands:
+            y0,y1=band[0],band[-1]+1
+            if not 7<=y1-y0<=34: continue
+            # Remove the left-side hex address, keeping the terminal content.
+            crop=region[max(0,y0-3):min(h,y1+4),int((x1-x0)*.26):]
+            for t in text_rows(crop,x0+int((x1-x0)*.26),7):
+                t['y']+=max(0,y0-3)
+                tokens.append(t)
     # De-duplicate OCR passes by location and token.
     unique = {}
     for t in tokens:
