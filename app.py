@@ -49,4 +49,4 @@ async def ocr(file: UploadFile=File(...)):
     if img.shape[0]*img.shape[1]>12_000_000: raise HTTPException(413,'Image dimensions too large')
     return {'tokens':recognize(img),'note':'Review and correct candidate words; split-line words may need manual joining.'}
 
-app.mount('/',StaticFiles(directory='public',html=True),name='site')
+app.mount('/', StaticFiles(directory='.', html=True), name='site')
