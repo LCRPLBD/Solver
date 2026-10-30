@@ -34,6 +34,7 @@ def text_rows(mask, x_offset, psm):
     return out
 
 def recognize(img, word_length):
+    lengths = {word_length} if word_length else set(range(4, 11))
     h,w = img.shape[:2]
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     white = cv2.inRange(hsv, (0,0,100), (179,135,255))
@@ -87,7 +88,7 @@ def recognize(img, word_length):
     tokens = sorted(unique.values(), key=lambda t:(t['y'],t['x']))
     candidates = {}
     def add(word, confidence, source):
-        if len(word) != word_length: return
+        if len(word) not in lengths: return
         # Only verified dictionary entries reach the playable candidate list.
         # Unknown OCR strings remain available in the raw tokens for debugging.
         if word not in WORDS: return
@@ -96,27 +97,36 @@ def recognize(img, word_length):
             candidates[word] = {'word':word,'confidence':round(max(0,min(100,score)),1),'source':source}
     for t in tokens:
         s=t['text']
-        if len(s)==word_length:
+        if len(s) in lengths:
             if s in WORDS: add(s,t['confidence'],'dictionary exact')
             # Known vocabulary corrects one-character misreads; show as uncertain.
             if t['confidence'] >= 25:
                 for word in WORDS:
-                    if len(word)==word_length and sum(a!=b for a,b in zip(word,s))==1 and t['confidence'] >= 75:
+                    if len(word)==len(s) and sum(a!=b for a,b in zip(word,s))==1 and t['confidence'] >= 75:
                         add(word,t['confidence']-65,'uncertain OCR correction')
-        if len(s)>word_length:
-            for i in range(len(s)-word_length+1):
-                word=s[i:i+word_length]
-                if word in WORDS: add(word,t['confidence']-15,'embedded')
-        if len(s)==word_length-1 and t['confidence']>20:
+        for length in lengths:
+            if len(s)>length:
+                for i in range(len(s)-length+1):
+                    word=s[i:i+length]
+                    if word in WORDS: add(word,t['confidence']-15,'embedded')
+
+    # Combine terminal rows within each column, never across columns.
+    for x0,x1 in ((0,w//2),(w//2,w)):
+        crop=cv2.resize(img[:,x0:x1],None,fx=3,fy=3,interpolation=cv2.INTER_CUBIC)
+        raw=pytesseract.image_to_string(crop,config='--oem 3 --psm 6').upper()
+        lines=raw.splitlines()
+        for a,b in zip(lines,lines[1:]):
+            a=re.sub(r'^\\s*(?:0[XO])?[0-9A-F]{3,8}\\s+', '',a)
+            b=re.sub(r'^\\s*(?:0[XO])?[0-9A-F]{3,8}\\s+', '',b)
+            tail=re.search(r'([A-Z]{1,9})[^A-Z]*$',a)
+            head=re.search(r'^[^A-Z]*([A-Z]{1,9})',b)
+            if not tail or not head: continue
+            left,right=tail.group(1),head.group(1)
             for word in WORDS:
-                if len(word)==word_length and (word.startswith(s) or word.endswith(s)):
-                    add(word,t['confidence']-45,'possible wrapped word')
-    # Adjacent text fragments may form a wrapped word in the same column.
-    for a,b in zip(tokens,tokens[1:]):
-        if (a['x']<w//2)!=(b['x']<w//2) or not 0<b['y']-a['y']<40: continue
-        for n in range(1,word_length):
-            word=a['text'][-n:]+b['text'][:word_length-n]
-            if word in WORDS: add(word,min(a['confidence'],b['confidence'])-30,'possible wrap')
+                if len(word) not in lengths: continue
+                for cut in range(1,len(word)):
+                    if left.endswith(word[:cut]) and right.startswith(word[cut:]):
+                        add(word,55,'line wrap')
     # Full-row OCR can recover complete known words even when the tokenizer
     # merges the terminal's surrounding punctuation into a single token.
     for x0,x1 in ((0,w//2),(w//2,w)):
@@ -125,7 +135,7 @@ def recognize(img, word_length):
         for line in raw.splitlines():
             compact=re.sub('[^A-Z]','',line)
             for word in WORDS:
-                if len(word)==word_length and word in compact:
+                if len(word) in lengths and word in compact:
                     add(word,70,'raw OCR')
     # Do not automatically guess dictionary words from a single-character
     # similarity: it produces false positives when the screenshot contains hex.
@@ -134,8 +144,8 @@ def recognize(img, word_length):
             'note':'Only dictionary matches are shown. Unknown words may be omitted; review the screenshot and add missing words to game_words.txt.'}
 
 @app.post('/api/ocr')
-async def ocr(file: UploadFile=File(...), word_length: int=6):
-    if not 4<=word_length<=10: raise HTTPException(400,'Word length must be 4 to 10')
+async def ocr(file: UploadFile=File(...), word_length: int=0):
+    if word_length != 0 and not 4<=word_length<=10: raise HTTPException(400,'Word length must be 0 (auto) or 4 to 10')
     data=await file.read()
     if len(data)>12_000_000: raise HTTPException(413,'Image too large')
     img=cv2.imdecode(np.frombuffer(data,np.uint8),cv2.IMREAD_COLOR)
