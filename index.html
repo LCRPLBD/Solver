@@ -1,406 +1,93 @@
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neptune Minigame Solver</title>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neptune ECU Solver</title>
 <style>
-:root {
-  color-scheme: dark;
-  font-family: Arial, sans-serif;
-}
-* { box-sizing: border-box; }
-body {
-  background: #090d19;
-  color: #eef2ff;
-  margin: 0;
-  padding: 24px;
-}
-main { max-width: 1050px; margin: auto; }
-h1 { color: #a78bfa; }
-.panel {
-  background: #151b2c;
-  border: 1px solid #343b55;
-  border-radius: 14px;
-  padding: 22px;
-  margin: 18px 0;
-}
-.drop {
-  border: 2px dashed #8b5cf6;
-  border-radius: 12px;
-  padding: 45px 20px;
-  text-align: center;
-  cursor: pointer;
-}
-.drop.active { background: #30224d; }
-button, input, textarea, select {
-  background: #222b42;
-  color: white;
-  border: 1px solid #46516b;
-  border-radius: 8px;
-  padding: 11px;
-  font-size: 15px;
-}
-button { cursor: pointer; }
-button:hover { background: #493582; }
-.primary {
-  background: #6d28d9;
-  border-color: #8b5cf6;
-}
-.actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 15px;
-}
-#preview {
-  display: none;
-  max-width: 100%;
-  max-height: 450px;
-  margin: 20px auto;
-  border-radius: 8px;
-}
-textarea {
-  width: 100%;
-  min-height: 180px;
-  font-family: monospace;
-}
-input[type=number] { width: 90px; }
-.word {
-  display: inline-block;
-  margin: 5px;
-  padding: 9px 13px;
-  border: 1px solid #48506b;
-  border-radius: 7px;
-}
-.muted { color: #aab5cc; }
-#status { margin-top: 15px; }
-</style>
-</head>
-<body>
-<main>
-<h1>Neptune Minigame Solver</h1>
-<p class="muted">
-Paste a screenshot, detect words, and solve
-your terminal minigame.
-</p>
-
+:root{color-scheme:dark;font-family:system-ui,Arial,sans-serif}*{box-sizing:border-box}
+body{margin:0;background:#090d19;color:#eef2ff;padding:22px}
+main{max-width:900px;margin:auto}h1{color:#b49aff}.muted{color:#aab5cc}
+.panel,.register{background:#151b2c;border:1px solid #343b55;border-radius:14px;padding:20px;margin:16px 0}
+.register{background:#101729}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.bits{display:flex;gap:5px;margin:12px 0;flex-wrap:nowrap}
+.bit{flex:1;min-width:0;height:53px;font:700 20px monospace;padding:0}
+.bit.on{background:#6d28d9;border-color:#c4b5fd}
+button,input{background:#222b42;color:#fff;border:1px solid #46516b;border-radius:8px;padding:10px;font-size:15px}
+button{cursor:pointer}button:hover{border-color:#a78bfa}.primary{background:#6d28d9;border-color:#8b5cf6}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:14px 0}
+label{display:inline-flex;align-items:center;gap:6px}input[type=number]{width:75px}
+input[type=text]{width:160px}.hex{font-family:monospace;color:#c4b5fd}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+</style></head><body><main>
+<h1>Neptune ECU Bit Solver</h1>
+<p class="muted">Click each bit to toggle between 0 and 1. The leftmost bit is 128; the rightmost is 1. Set both current and target values, then solve.</p>
+<div id="registers" class="grid"></div>
 <section class="panel">
-<h2>Screenshot Recognition</h2>
-<label>Word length <select id="wordLength"><option value="0">Auto-detect (4–10 letters)</option><option value="4">4 letters</option><option value="5">5 letters</option><option value="6">6 letters — A Class boosts</option><option value="7">7 letters</option><option value="8">8 letters</option><option value="9">9 letters</option><option value="10">10 letters</option></select></label>
-<div id="drop" class="drop">
-  <h3>Paste screenshot here</h3>
-  <p>Press Ctrl + V anywhere on this page</p>
-  <p>Or click to select an image</p>
-</div>
-
-<input id="file" type="file"
-       accept="image/*" hidden>
-
-<img id="preview" alt="Screenshot preview">
-
-<div class="actions">
-  <button id="paste" class="primary">
-    Paste Screenshot
-  </button>
-  <button id="scan" class="primary">
-    Scan Screenshot
-  </button>
-  <button id="clear">Clear</button>
-</div>
-<p id="status" class="muted">Waiting for screenshot.</p>
-</section>
-
-<section class="panel">
-<h2>Detected Words</h2>
-<p class="muted">
-One word per line. You can correct OCR errors.
-</p>
-<textarea id="words"
-placeholder="DONGLE&#10;CHARGE&#10;CASINO"></textarea>
-<div class="actions">
-  <button id="start" class="primary">
-    Start Solver
-  </button>
-</div>
-</section>
-
-<section class="panel">
-<h2>Word Solver</h2>
-<p id="recommendation">Enter words to begin.</p>
-<div class="actions">
-  <label>
-    Likeness:
-    <input id="likeness" type="number"
-           min="0" max="12" value="0">
-  </label>
-  <button id="submit" class="primary">
-    Submit Likeness
-  </button>
-  <button id="reset">Reset</button>
-</div>
-<h3>Remaining Candidates</h3>
-<div id="candidates"></div>
-<h3>Guess History</h3>
-<div id="history"></div>
-</section>
-<section class="panel" id="ecuPanel">
-<h2>ECU Bit Solver</h2><p class="muted">Enter current and target hexadecimal bytes for both registers. Select allowed operations.</p>
-<div class="actions"><label>R0 current <input id="r0c" value="00" maxlength="2"></label><label>R0 target <input id="r0t" value="00" maxlength="2"></label><label>R1 current <input id="r1c" value="00" maxlength="2"></label><label>R1 target <input id="r1t" value="00" maxlength="2"></label></div>
-<label>XOR masks (hex, comma-separated) <input id="ecuMasks" value="59,8F"></label>
-<div class="actions"><label><input type="checkbox" id="ecuNot" checked> NOT</label><label><input type="checkbox" id="ecuRol"> ROL 1</label><label><input type="checkbox" id="ecuRor"> ROR 1</label><label>Max operations <input id="ecuMax" type="number" value="8" min="1" max="15"></label></div>
-<button id="ecuSolve" class="primary">Solve ECU</button><pre id="ecuResult" style="white-space:pre-wrap"></pre>
-</section>
-</main>
-
+<h2>Allowed operations</h2>
+<div class="controls"><label>XOR masks (hex) <input id="masks" type="text" value="59,8F"></label>
+<label><input id="allowNot" type="checkbox" checked> NOT</label>
+<label><input id="allowRol" type="checkbox"> ROL 1</label>
+<label><input id="allowRor" type="checkbox"> ROR 1</label>
+<label>Max steps <input id="maxSteps" type="number" min="1" max="15" value="8"></label></div>
+<div class="controls"><button id="solve" class="primary">Solve ECU</button><button id="clear">Clear bits</button></div>
+<pre id="result" aria-live="polite">Set the bits above to begin.</pre>
+</section></main>
 <script>
-let screenshot = null;
-let candidates = [];
-let currentGuess = null;
-let history = [];
-
-const $ = id => document.getElementById(id);
-
-function status(message) {
-  $("status").textContent = message;
+(() => {
+const $=id=>document.getElementById(id);
+const values={r0c:0,r0t:0,r1c:0,r1t:0};
+const labels=[["r0c","R0 — Current"],["r0t","R0 — Target"],["r1c","R1 — Current"],["r1t","R1 — Target"]];
+for(const [id,label] of labels){
+ const box=document.createElement("section");box.className="register";
+ const title=document.createElement("h2");title.textContent=label+" ";
+ const hex=document.createElement("span");hex.className="hex";hex.id=id+"Hex";title.appendChild(hex);box.appendChild(title);
+ const row=document.createElement("div");row.className="bits";row.setAttribute("role","group");row.setAttribute("aria-label",label);
+ for(let bit=7;bit>=0;bit--){
+  const btn=document.createElement("button");btn.className="bit";btn.type="button";
+  btn.dataset.register=id;btn.dataset.bit=String(bit);btn.setAttribute("aria-label",label+" bit "+bit);
+  btn.addEventListener("click",()=>{values[id]^=1<<bit;refresh();});row.appendChild(btn);
+ }
+ box.appendChild(row);$("registers").appendChild(box);
 }
-
-function loadImage(file) {
-  if (!file || !file.type.startsWith("image/")) {
-    status("Please select an image.");
-    return;
+function refresh(){
+ for(const [id] of labels){
+  $(id+"Hex").textContent="0x"+values[id].toString(16).toUpperCase().padStart(2,"0");
+  for(const btn of document.querySelectorAll('[data-register="'+id+'"]')){
+   const on=Boolean(values[id]&(1<<Number(btn.dataset.bit)));
+   btn.textContent=on?"1":"0";btn.classList.toggle("on",on);btn.setAttribute("aria-pressed",String(on));
   }
-  screenshot = file;
-  $("preview").src = URL.createObjectURL(file);
-  $("preview").style.display = "block";
-  status("Screenshot loaded. Scanning automatically..."); scanScreenshot();
+ }
+ $("result").textContent="Ready to solve.";
 }
-
-$("drop").onclick = () => $("file").click();
-
-$("file").onchange = e => {
-  loadImage(e.target.files[0]);
-};
-
-document.addEventListener("paste", e => {
-  const items = [...(e.clipboardData?.items || [])];
-  const item = items.find(x => x.type.startsWith("image/"));
-  if (!item) return;
-  e.preventDefault();
-  loadImage(item.getAsFile());
-});
-
-$("paste").onclick = async () => {
-  try {
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      const type = item.types.find(t => t.startsWith("image/"));
-      if (type) {
-        const blob = await item.getType(type);
-        loadImage(new File([blob], "screenshot.png", {
-          type: blob.type
-        }));
-        return;
-      }
-    }
-    status("No screenshot found in clipboard.");
-  } catch {
-    status("Press Ctrl + V to paste your screenshot.");
+$("clear").onclick=()=>{for(const id in values)values[id]=0;refresh();};
+$("solve").onclick=()=>{
+ const start=[values.r0c,values.r1c],target=[values.r0t,values.r1t];
+ const input=$("masks").value.trim();
+ const parts=input?input.split(/[\s,;]+/).filter(Boolean):[];
+ if(parts.some(v=>!/^(?:0x)?[0-9a-f]{1,2}$/i.test(v))){
+  $("result").textContent="Invalid XOR masks. Use hexadecimal bytes like 59,8F.";return;
+ }
+ const masks=[...new Set(parts.map(v=>parseInt(v.replace(/^0x/i,""),16)))];
+ const ops=masks.map(m=>["XOR 0x"+m.toString(16).toUpperCase().padStart(2,"0"),v=>v^m]);
+ if($("allowNot").checked)ops.push(["NOT",v=>v^255]);
+ if($("allowRol").checked)ops.push(["ROL 1",v=>((v<<1)|(v>>7))&255]);
+ if($("allowRor").checked)ops.push(["ROR 1",v=>((v>>1)|(v<<7))&255]);
+ const max=Math.min(15,Math.max(1,Number($("maxSteps").value)||8));
+ const key=v=>(v[0]<<8)|v[1];
+ const queue=[{v:start,steps:[]}],seen=new Set([key(start)]);
+ let answer=null;
+ for(let i=0;i<queue.length;i++){
+  const node=queue[i];
+  if(key(node.v)===key(target)){answer=node.steps;break;}
+  if(node.steps.length>=max)continue;
+  for(let r=0;r<2;r++)for(const [name,fn] of ops){
+   const next=node.v.slice();const before=next[r];next[r]=fn(before);
+   const k=key(next);if(seen.has(k))continue;seen.add(k);
+   const hx=v=>v.toString(16).toUpperCase().padStart(2,"0");
+   queue.push({v:next,steps:[...node.steps,"R"+r+" → "+name+" (0x"+hx(before)+" → 0x"+hx(next[r])+")"]});
   }
+ }
+ $("result").textContent=answer===null?"No solution within "+max+" steps using the selected operations.":
+ answer.length===0?"Already solved.":answer.map((step,i)=>(i+1)+". "+step).join("\n");
 };
-
-$("drop").ondragover = e => {
-  e.preventDefault();
-  $("drop").classList.add("active");
-};
-
-$("drop").ondragleave = () => {
-  $("drop").classList.remove("active");
-};
-
-$("drop").ondrop = e => {
-  e.preventDefault();
-  $("drop").classList.remove("active");
-  loadImage(e.dataTransfer.files[0]);
-};
-
-$("clear").onclick = () => {
-  screenshot = null;
-  $("preview").style.display = "none";
-  $("preview").removeAttribute("src");
-  $("file").value = "";
-  status("Waiting for screenshot.");
-};
-
-async function scanScreenshot() {
-  if (!screenshot) {
-    status("Paste a screenshot first.");
-    return;
-  }
-
-  status("Scanning screenshot...");
-
-  const form = new FormData();
-  form.append("file", screenshot);
-
-  try {
-    const response = await fetch("/api/ocr?word_length=" + encodeURIComponent($("wordLength").value), {
-      method: "POST",
-      body: form
-    });
-
-    if (!response.ok) {
-      throw new Error("OCR server returned " + response.status);
-    }
-
-    const data = await response.json();
-
-    let words = data.words || data.candidates || (data.tokens || []).map(t => t.text).filter(w => /^[A-Z]{4,12}$/.test(w));
-    if (typeof words === "string") words = words.split(/\s+/);
-    if (!Array.isArray(words)) words = [];
-    words = words.map(w => typeof w === "string" ? w : w.word || w.text || "").filter(Boolean);
-
-    $("words").value = [...new Set(words)].join("\n");
-    status("Scan complete: " + words.length + " possible words. Review before guessing.");
-    if (words.length) $("start").click();
-  } catch (error) {
-    status("Scan failed: " + error.message +
-      ". Check your backend OCR endpoint.");
-  }
-}
-$("scan").onclick = scanScreenshot;
-$("wordLength").onchange = () => { if (screenshot) scanScreenshot(); };
-
-function likeness(a, b) {
-  let count = 0;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] === b[i]) count++;
-  }
-  return count;
-}
-
-function bestGuess(words) {
-  if (!words.length) return null;
-
-  let best = words[0];
-  let bestScore = Infinity;
-
-  for (const guess of words) {
-    const groups = {};
-    for (const answer of words) {
-      const n = likeness(guess, answer);
-      groups[n] = (groups[n] || 0) + 1;
-    }
-
-    const score = Object.values(groups)
-      .reduce((sum, n) => sum + n * n, 0);
-
-    if (score < bestScore) {
-      bestScore = score;
-      best = guess;
-    }
-  }
-
-  return best;
-}
-
-function render() {
-  $("recommendation").textContent = currentGuess
-    ? "Recommended guess: " + currentGuess
-    : "No matching candidates remain.";
-
-  $("candidates").replaceChildren();
-
-  for (const word of candidates) {
-    const span = document.createElement("span");
-    span.className = "word";
-    span.textContent = word;
-    $("candidates").appendChild(span);
-  }
-
-  $("history").replaceChildren();
-
-  for (const entry of history) {
-    const p = document.createElement("p");
-    p.textContent =
-      entry.guess + " — likeness " + entry.score;
-    $("history").appendChild(p);
-  }
-}
-
-$("start").onclick = () => {
-  const raw = $("words").value.toUpperCase()
-    .split(/\s+/)
-    .map(w => w.replace(/[^A-Z]/g, ""))
-    .filter(Boolean);
-
-  const selectedLength = Number($("wordLength").value);
-  const counts = {};
-  for (const word of raw) counts[word.length] = (counts[word.length] || 0) + 1;
-  const length = selectedLength || Number(Object.keys(counts).sort((a,b) => counts[b]-counts[a])[0]);
-  candidates = [...new Set(raw)].filter(w => w.length === length);
-  if (!candidates.length) { $("recommendation").textContent = "No words of the selected length detected. Try Auto or correct the list."; return; }
-
-  history = [];
-  currentGuess = bestGuess(candidates);
-  render();
-};
-
-$("submit").onclick = () => {
-  if (!currentGuess) return;
-
-  const score = Number($("likeness").value);
-
-  if (!Number.isInteger(score) ||
-      score < 0 ||
-      score > currentGuess.length) {
-    alert("Invalid likeness number.");
-    return;
-  }
-
-  history.push({
-    guess: currentGuess,
-    score
-  });
-
-  if (score === currentGuess.length) {
-    $("recommendation").textContent =
-      "Solved: " + currentGuess;
-    currentGuess = null;
-    return;
-  }
-
-  candidates = candidates.filter(word =>
-    word !== currentGuess &&
-    likeness(currentGuess, word) === score
-  );
-
-  currentGuess = bestGuess(candidates);
-  render();
-};
-
-$("reset").onclick = () => $("start").click();
-</script>
-<script>
-document.getElementById('ecuSolve').onclick=()=>{
-const $=id=>document.getElementById(id), hex=id=>{const v=$(id).value.trim();return /^[0-9a-fA-F]{1,2}$/.test(v)?parseInt(v,16):NaN};
-const start=[hex('r0c'),hex('r1c')],target=[hex('r0t'),hex('r1t')];
-if([...start,...target].some(x=>!Number.isInteger(x))){$('ecuResult').textContent='Enter valid hexadecimal bytes (00 to FF).';return}
-const masks=$('ecuMasks').value.split(/[\s,;]+/).filter(Boolean).map(x=>parseInt(x.replace(/^0x/i,''),16));
-if(masks.some(x=>!Number.isInteger(x)||x<0||x>255)){$('ecuResult').textContent='Invalid XOR mask.';return}
-const ops=[...new Set(masks)].map(m=>['XOR '+m.toString(16).toUpperCase().padStart(2,'0'),v=>v^m]);
-if($('ecuNot').checked)ops.push(['NOT',v=>v^255]);
-if($('ecuRol').checked)ops.push(['ROL 1',v=>((v<<1)|(v>>7))&255]);
-if($('ecuRor').checked)ops.push(['ROR 1',v=>((v>>1)|(v<<7))&255]);
-const max=Math.min(15,Math.max(1,Number($('ecuMax').value)||8));
-const encode=v=>(v[0]<<8)|v[1],q=[{v:start,steps:[]}],seen=new Set([encode(start)]);
-let found=null;
-for(let i=0;i<q.length;i++){const cur=q[i];if(cur.v[0]===target[0]&&cur.v[1]===target[1]){found=cur.steps;break}if(cur.steps.length>=max)continue;
-for(let r=0;r<2;r++)for(const [label,fn] of ops){const next=cur.v.slice(),before=next[r];next[r]=fn(before);const key=encode(next);if(seen.has(key))continue;seen.add(key);
-q.push({v:next,steps:[...cur.steps,'R'+r+' → '+label+' ('+before.toString(16).toUpperCase().padStart(2,'0')+' → '+next[r].toString(16).toUpperCase().padStart(2,'0')+')']})}}
-$('ecuResult').textContent=found?(found.length?found.map((s,i)=>(i+1)+'. '+s).join('\n'):'Already solved.'):'No solution found within '+max+' operations.';
-};
-</script>
-</body>
-</html>
+refresh();
+})();
+</script></body></html>
