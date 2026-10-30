@@ -88,6 +88,7 @@ your terminal minigame.
 
 <section class="panel">
 <h2>Screenshot Recognition</h2>
+<label>Word length <select id="wordLength"><option value="0">Auto-detect (4–10 letters)</option><option value="4">4 letters</option><option value="5">5 letters</option><option value="6">6 letters — A Class boosts</option><option value="7">7 letters</option><option value="8">8 letters</option><option value="9">9 letters</option><option value="10">10 letters</option></select></label>
 <div id="drop" class="drop">
   <h3>Paste screenshot here</h3>
   <p>Press Ctrl + V anywhere on this page</p>
@@ -244,7 +245,7 @@ async function scanScreenshot() {
   form.append("file", screenshot);
 
   try {
-    const response = await fetch("/api/ocr?word_length=6", {
+    const response = await fetch("/api/ocr?word_length=" + encodeURIComponent($("wordLength").value), {
       method: "POST",
       body: form
     });
@@ -269,6 +270,7 @@ async function scanScreenshot() {
   }
 }
 $("scan").onclick = scanScreenshot;
+$("wordLength").onchange = () => { if (screenshot) scanScreenshot(); };
 
 function likeness(a, b) {
   let count = 0;
@@ -333,10 +335,12 @@ $("start").onclick = () => {
     .map(w => w.replace(/[^A-Z]/g, ""))
     .filter(Boolean);
 
-  const length = raw[0]?.length;
-
-  candidates = [...new Set(raw)]
-    .filter(w => w.length === length);
+  const selectedLength = Number($("wordLength").value);
+  const counts = {};
+  for (const word of raw) counts[word.length] = (counts[word.length] || 0) + 1;
+  const length = selectedLength || Number(Object.keys(counts).sort((a,b) => counts[b]-counts[a])[0]);
+  candidates = [...new Set(raw)].filter(w => w.length === length);
+  if (!candidates.length) { $("recommendation").textContent = "No words of the selected length detected. Try Auto or correct the list."; return; }
 
   history = [];
   currentGuess = bestGuess(candidates);
