@@ -88,19 +88,21 @@ def recognize(img, word_length):
     candidates = {}
     def add(word, confidence, source):
         if len(word) != word_length: return
-        if word not in WORDS and not word.isalpha(): return
+        # Only verified dictionary entries reach the playable candidate list.
+        # Unknown OCR strings remain available in the raw tokens for debugging.
+        if word not in WORDS: return
         score = confidence + (12 if word in WORDS else -12)
         if word not in candidates or score > candidates[word]['confidence']:
             candidates[word] = {'word':word,'confidence':round(max(0,min(100,score)),1),'source':source}
     for t in tokens:
         s=t['text']
         if len(s)==word_length:
-            add(s,t['confidence'],'ocr')
+            if s in WORDS: add(s,t['confidence'],'dictionary exact')
             # Known vocabulary corrects one-character misreads; show as uncertain.
             if t['confidence'] >= 25:
                 for word in WORDS:
-                    if len(word)==word_length and sum(a!=b for a,b in zip(word,s))==1:
-                        add(word,t['confidence']-40,'possible OCR correction')
+                    if len(word)==word_length and sum(a!=b for a,b in zip(word,s))==1 and t['confidence'] >= 75:
+                        add(word,t['confidence']-65,'uncertain OCR correction')
         if len(s)>word_length:
             for i in range(len(s)-word_length+1):
                 word=s[i:i+word_length]
@@ -125,9 +127,11 @@ def recognize(img, word_length):
             for word in WORDS:
                 if len(word)==word_length and word in compact:
                     add(word,70,'raw OCR')
-    result=sorted(candidates.values(),key=lambda t:(-t['confidence'],t['word']))
+    # Do not automatically guess dictionary words from a single-character
+    # similarity: it produces false positives when the screenshot contains hex.
+    result=sorted((v for v in candidates.values() if v['source'] != 'uncertain OCR correction'),key=lambda t:(-t['confidence'],t['word']))
     return {'words':result,'tokens':tokens[:180],'dictionary_size':len(WORDS),
-            'note':'OCR results are suggestions. Check each word against the screenshot.'}
+            'note':'Only dictionary matches are shown. Unknown words may be omitted; review the screenshot and add missing words to game_words.txt.'}
 
 @app.post('/api/ocr')
 async def ocr(file: UploadFile=File(...), word_length: int=6):
