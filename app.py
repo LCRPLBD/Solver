@@ -1,52 +1,96 @@
+"""Neptune Solver: screenshot OCR, word matching and static web app."""
 import re
+from pathlib import Path
 import cv2
 import numpy as np
 import pytesseract
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-app = FastAPI(title='Neptune Minigame Solver')
+ROOT = Path(__file__).resolve().parent
+WORDS = set(re.findall(r'^[A-Z]{4,10}$', (ROOT/'game_words.txt').read_text(), re.M))
+app = FastAPI(title='Neptune Solver')
 
-# Terminal candidate text is frequently wrapped over the next 12-pixel memory row.
-# OCR the two columns separately, then use the address increments to join fragments.
-def recognize(img):
-    h,w=img.shape[:2]
-    hsv=cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
-    # White/near-white characters (candidate words) and brighter cyan-green highlight.
-    white=cv2.inRange(hsv,np.array([0,0,105]),np.array([179,145,255]))
-    # Green game text (use only as fallback; address text is green).
-    green=cv2.inRange(hsv,np.array([35,40,45]),np.array([100,255,255]))
-    results=[]
-    for maskname,mask in [('white',white),('green',green)]:
-        for scale in (2,3):
-            enlarged=cv2.resize(mask,None,fx=scale,fy=scale,interpolation=cv2.INTER_NEAREST)
+@app.get('/')
+def index():
+    return FileResponse(ROOT/'index.html')
+
+@app.get('/api/health')
+def health():
+    return {'ok': True, 'dictionary_size': len(WORDS), 'ocr': 'tesseract'}
+
+def text_rows(mask, x_offset, psm):
+    scaled = cv2.resize(mask, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    data = pytesseract.image_to_data(scaled, config=f'--oem 3 --psm {psm} -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', output_type=pytesseract.Output.DICT)
+    out = []
+    for i, raw in enumerate(data['text']):
+        word = re.sub('[^A-Z]', '', raw.upper())
+        if not 2 <= len(word) <= 12:
+            continue
+        conf = float(data['conf'][i])
+        if conf < 5:
+            continue
+        out.append({'text': word, 'x': x_offset+int(data['left'][i]/3), 'y': int(data['top'][i]/3), 'confidence': conf})
+    return out
+
+def recognize(img, word_length):
+    h,w = img.shape[:2]
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    white = cv2.inRange(hsv, (0,0,100), (179,135,255))
+    green = cv2.inRange(hsv, (35,45,45), (105,255,255))
+    tokens = []
+    # Process each column independently so OCR does not merge left and right rows.
+    for x0,x1 in ((0,w//2),(w//2,w)):
+        for mask in (white, cv2.bitwise_or(white, green)):
             for psm in (6,11):
-                d=pytesseract.image_to_data(enlarged,config=f'--psm {psm} -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',output_type=pytesseract.Output.DICT)
-                for i,raw in enumerate(d['text']):
-                    word=re.sub('[^A-Za-z]','',raw).upper()
-                    if len(word)<2 or len(word)>12: continue
-                    try: conf=float(d['conf'][i])
-                    except: conf=-1
-                    if conf<5: continue
-                    x,y,ww,hh=[int(d[k][i])/scale for k in ('left','top','width','height')]
-                    results.append(dict(text=word,x=round(x),y=round(y),width=round(ww),height=round(hh),confidence=round(conf),pass_name=maskname))
-    # Merge overlapping recognitions, preferring longer / higher confidence tokens.
-    results.sort(key=lambda t:(-len(t['text']),-t['confidence']))
-    unique=[]
-    for t in results:
-        if any(abs(t['x']-a['x'])<max(10,t['width']*.45) and abs(t['y']-a['y'])<max(9,t['height']*.8) for a in unique): continue
-        unique.append(t)
-    unique.sort(key=lambda t:(t['y'],t['x']))
-    return unique
+                tokens.extend(text_rows(mask[:,x0:x1], x0, psm))
+    # De-duplicate OCR passes by location and token.
+    unique = {}
+    for t in tokens:
+        key = (t['text'],round(t['x']/12),round(t['y']/9))
+        if key not in unique or unique[key]['confidence'] < t['confidence']:
+            unique[key] = t
+    tokens = sorted(unique.values(), key=lambda t:(t['y'],t['x']))
+    candidates = {}
+    def add(word, confidence, source):
+        if len(word) != word_length: return
+        if word not in WORDS and not word.isalpha(): return
+        score = confidence + (12 if word in WORDS else -12)
+        if word not in candidates or score > candidates[word]['confidence']:
+            candidates[word] = {'word':word,'confidence':round(max(0,min(100,score)),1),'source':source}
+    for t in tokens:
+        s=t['text']
+        if len(s)==word_length:
+            add(s,t['confidence'],'ocr')
+            # Known vocabulary corrects one-character misreads; show as uncertain.
+            if t['confidence'] >= 25:
+                for word in WORDS:
+                    if len(word)==word_length and sum(a!=b for a,b in zip(word,s))==1:
+                        add(word,t['confidence']-40,'possible OCR correction')
+        if len(s)>word_length:
+            for i in range(len(s)-word_length+1):
+                word=s[i:i+word_length]
+                if word in WORDS: add(word,t['confidence']-15,'embedded')
+        if len(s)==word_length-1 and t['confidence']>20:
+            for word in WORDS:
+                if len(word)==word_length and (word.startswith(s) or word.endswith(s)):
+                    add(word,t['confidence']-45,'possible wrapped word')
+    # Adjacent text fragments may form a wrapped word in the same column.
+    for a,b in zip(tokens,tokens[1:]):
+        if (a['x']<w//2)!=(b['x']<w//2) or not 0<b['y']-a['y']<40: continue
+        for n in range(1,word_length):
+            word=a['text'][-n:]+b['text'][:word_length-n]
+            if word in WORDS: add(word,min(a['confidence'],b['confidence'])-30,'possible wrap')
+    result=sorted(candidates.values(),key=lambda t:(-t['confidence'],t['word']))
+    return {'words':result,'tokens':tokens[:180],'dictionary_size':len(WORDS),
+            'note':'OCR results are suggestions. Check each word against the screenshot.'}
 
 @app.post('/api/ocr')
-async def ocr(file: UploadFile=File(...)):
+async def ocr(file: UploadFile=File(...), word_length: int=6):
+    if not 4<=word_length<=10: raise HTTPException(400,'Word length must be 4 to 10')
     data=await file.read()
     if len(data)>12_000_000: raise HTTPException(413,'Image too large')
     img=cv2.imdecode(np.frombuffer(data,np.uint8),cv2.IMREAD_COLOR)
     if img is None: raise HTTPException(400,'Invalid image')
     if img.shape[0]*img.shape[1]>12_000_000: raise HTTPException(413,'Image dimensions too large')
-    return {'tokens':recognize(img),'note':'Review and correct candidate words; split-line words may need manual joining.'}
-
-app.mount('/', StaticFiles(directory='.', html=True), name='site')
+    return recognize(img,word_length)
