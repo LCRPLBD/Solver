@@ -248,7 +248,7 @@ $("scan").onclick = async () => {
 
     const data = await response.json();
 
-    let words = data.words || data.candidates || [];
+    let words = data.words || data.candidates || (data.tokens || []).map(t => t.text).filter(w => /^[A-Z]{4,12}$/.test(w));
 
     if (typeof words === "string") {
       words = words.split(/\s+/);
