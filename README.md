@@ -1,24 +1,28 @@
-# Neptune Minigame Solver
+# Neptune Solver
 
-A self-hosted word-likeness + ECU bit solver.
+A Railway-hosted screenshot word-likeness solver and ECU byte-operation solver.
 
-## Deploy to Railway (recommended)
-1. Upload this folder to a new GitHub repository.
-2. In Railway, choose **New Project → Deploy from GitHub repo** and select it.
-3. Railway detects the Dockerfile. Deploy, then open **Settings → Networking → Generate Domain**.
-4. Visit the generated URL. Paste screenshots with Ctrl+V and use **Scan screenshot**.
+## Railway deployment
+1. Connect the GitHub repository `LCRPLBD/Solver` to a Railway service.
+2. Railway should use the repository `Dockerfile` (Python 3.11 and Tesseract).
+3. Generate a public domain under Railway Networking.
+4. Open `/api/health` to confirm the service is running, then open `/` for the interface.
 
-Railway includes server-side Tesseract OCR. OCR is imperfect with game terminal fonts; manually correct split words and bad detections. The app does not retain uploaded screenshots.
+The Dockerfile listens on Railway's `PORT` environment variable. No API keys are required.
 
-## Deploy to GitHub Pages (manual-only mode)
-1. Publish the repository and enable Pages in **Settings → Pages → Deploy from branch**.
-2. Use the `/public` folder content as the site root (copy `public/index.html` to repository root for branch deployment).
-3. The word solver and bit solver work, but **Scan screenshot** requires the Railway backend `/api/ocr`. For full OCR, deploy to Railway instead.
+## Using the solver
+- Paste a screenshot with Ctrl+V or upload/drop an image. Recognition runs automatically.
+- The backend reads both columns separately, attempts to match candidate words against `game_words.txt`, and returns confidence-ranked suggestions.
+- **Review and correct OCR suggestions** before using likeness feedback. The dictionary is a curated starting list, not a proven complete list.
+- Enter likeness feedback to narrow possible words. The ECU panel solves two 8-bit registers with the selected XOR/NOT/rotation operations.
 
-## Local run
-With Python 3.11, Tesseract OCR installed and dependencies installed from `requirements.txt`, run `uvicorn app:app --reload` and open http://localhost:8000.
+## API
+- `GET /api/health` returns status and dictionary size.
+- `POST /api/ocr?word_length=6` accepts a multipart `file` image and returns `words` (objects containing `word`, `confidence`, and `source`), `tokens`, and `dictionary_size`.
+- Image upload limit: 12 MB and 12 million pixels. Images are processed in memory, not saved.
 
-## Features
-- Paste, drop, upload screenshots; OCR tokens can be clicked into editable candidate list.
-- Likeness solver filters by all feedback and chooses a guess that partitions remaining candidates.
-- Clickable bits and editable hex, XOR/NOT/ROL/ROR shortest-path solver.
+## Known limitations
+OCR may miss words embedded in terminal symbol noise or wrapped between rows. One-character dictionary corrections are low confidence and may be false positives. The recognizer has not been benchmarked against all historical screenshots; do not assume the 93-word vocabulary is exhaustive.
+
+## Local development
+Install Python 3.11, Tesseract OCR, and dependencies from `requirements.txt`. Run `uvicorn app:app --reload`, then open http://localhost:8000.
