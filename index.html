@@ -23,7 +23,7 @@ h1{margin:5px 0 0;font-size:clamp(25px,4vw,39px);letter-spacing:1px}h1 span{colo
 .bit.target.on{background:#176e8c;border-color:#66e5ff;color:#e5faff;box-shadow:0 0 16px #39d5ff30}
 button,input{font:inherit;color:#fff}button{cursor:pointer}button:hover{filter:brightness(1.17)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
-input[type=text],input[type=number]{background:#0a1020;border:1px solid #465170;border-radius:8px;padding:10px}
+select{background:#0a1020;color:white;border:1px solid #465170;border-radius:8px;padding:10px}input[type=text],input[type=number]{background:#0a1020;border:1px solid #465170;border-radius:8px;padding:10px}
 input[type=text]{width:80px}input[type=number]{width:72px}
 .controls{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin:16px 0}
 .controls label{display:inline-flex;align-items:center;gap:8px}
@@ -34,15 +34,28 @@ input[type=checkbox]{accent-color:#9d65ff;width:16px;height:16px}
 .stepnum{display:inline-grid;place-items:center;width:29px;height:29px;border-radius:8px;background:#3e276b;color:#d5b9ff;font-size:14px}
 #result{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9;background:#080d19;border:1px solid #303b56;border-radius:10px;padding:17px;min-height:76px;font:14px ui-monospace,Consolas,monospace}
 @media(max-width:720px){.grid{grid-template-columns:1fr}main{padding:15px}.panel,.register{padding:16px}.bit{height:47px;font-size:16px}.tag{display:none}}
+.tabs{display:flex;gap:10px;margin-bottom:20px}.tabs button[aria-selected=true]{background:linear-gradient(110deg,#7339d0,#9a4bea);border-color:#b28bff}.tabpane[hidden]{display:none!important}.practice-status{padding:14px;border:1px solid #394568;border-radius:10px;background:#0b1222;margin:14px 0}.practice-good{color:#68f5cc}.practice-bad{color:#ffb6c3}.practice-stats{display:flex;gap:16px;flex-wrap:wrap;color:#b5c6e5}.practice-log{line-height:1.8;padding-left:24px}.practice-log li{margin:5px 0}.practice-btn{min-width:120px}.practice-controls{display:flex;gap:10px;flex-wrap:wrap}
 </style></head><body><main>
 <header><div><div class="eyebrow">NIGHTZOOM // UTILITIES</div><h1>ECU <span>BIT SOLVER</span></h1><p class="muted">Interactive register editor · Click a bit to toggle it or enter a hex byte.</p></div><div class="tag">NEPTUNE TOOLS</div></header>
+<nav class="tabs" role="tablist" aria-label="ECU modes"><button id="solverTab" class="secondary" role="tab" aria-selected="true" aria-controls="solverPane">ECU SOLVER</button><button id="practiceTab" class="secondary" role="tab" aria-selected="false" aria-controls="practicePane">PRACTICE</button></nav>
+<div id="solverPane" class="tabpane" role="tabpanel" aria-labelledby="solverTab">
 <section class="panel"><h2 class="section-title"><span class="stepnum">01</span> Set registers and targets</h2><p class="muted">Purple = current bit set to 1 · Cyan = target bit set to 1 · Leftmost bit is 128, rightmost bit is 1.</p><div id="registers" class="grid"></div></section>
 <section class="panel"><h2 class="section-title"><span class="stepnum">02</span> Available operations</h2>
 <div class="controls"><label>XOR #1 <input id="xor1" type="text" value="D2" maxlength="4" aria-label="First XOR mask"></label><label>XOR #2 <input id="xor2" type="text" value="8A" maxlength="4" aria-label="Second XOR mask"></label>
 <label><input id="allowNot" type="checkbox" checked> NOT</label><label><input id="allowRol" type="checkbox"> ROL 1</label><label><input id="allowRor" type="checkbox"> ROR 1</label><label>Max moves <input id="maxSteps" type="number" min="1" max="20" value="7"></label></div>
 <p class="muted">Each operation affects one register per move. The solver finds a shortest valid sequence within your move limit.</p>
 <div class="controls"><button id="solve" class="primary">SOLVE BITS</button><button id="example" class="secondary">Load example</button><button id="clear" class="secondary">Clear bits</button></div></section>
-<section class="panel"><h2 class="section-title"><span class="stepnum">03</span> Solution steps</h2><div id="result" role="status" aria-live="polite">Set your values, then select SOLVE BITS.</div></section>
+<section class="panel"><h2 class="section-title"><span class="stepnum">03</span> Solution steps</h2><div id="result" role="status" aria-live="polite">Set your values, then select SOLVE BITS.</div></section></div>
+<div id="practicePane" class="tabpane" role="tabpanel" aria-labelledby="practiceTab" hidden>
+<section class="panel"><h2 class="section-title"><span class="stepnum">01</span> Practice setup</h2>
+<p class="muted">A random, guaranteed-solvable puzzle is generated each round. Solve it yourself by applying operations to R0 and R1. No automatic solution is shown unless you reveal it.</p>
+<div class="controls"><label>Difficulty <select id="difficulty"><option value="easy">Easy · 2–3 moves</option><option value="medium" selected>Medium · 4–5 moves</option><option value="hard">Hard · 6–7 moves</option></select></label><button class="primary" id="newPractice">NEW PUZZLE</button><button class="secondary" id="practiceReset">RESET ATTEMPT</button></div>
+<div class="practice-stats"><span id="practiceRound">Round 0</span><span id="practiceMoves">Moves: 0</span><span id="practiceWins">Solved: 0</span></div></section>
+<section class="panel"><h2 class="section-title"><span class="stepnum">02</span> Solve the registers</h2>
+<div id="practiceRegisters" class="grid"></div><div id="practiceOperations" class="controls"></div>
+<div class="practice-controls"><button id="practiceUndo" class="secondary">UNDO MOVE</button><button id="practiceHint" class="secondary">HINT</button><button id="practiceReveal" class="secondary">REVEAL SOLUTION</button></div>
+<div id="practiceStatus" class="practice-status" role="status" aria-live="polite">Click NEW PUZZLE to begin.</div>
+<h3>Your moves</h3><ol id="practiceHistory" class="practice-log"></ol></section></div>
 </main>
 <script>
 (()=>{
@@ -121,5 +134,134 @@ $("solve").addEventListener("click",()=>{
 $("clear").addEventListener("click",()=>{registers.forEach(r=>{r.current=0;r.target=0;});render();$("result").textContent="All bits cleared.";});
 $("example").addEventListener("click",()=>{registers[0].current=0xB2;registers[0].target=0x39;registers[1].current=0x3C;registers[1].target=0xC3;$("xor1").value="D0";$("xor2").value="8B";$("allowNot").checked=true;$("allowRol").checked=false;$("allowRor").checked=false;$("maxSteps").value=5;render();$("solve").click();});
 render();
+
+// Practice mode: independent of the automated solver UI.
+const practice={round:0,wins:0,initial:[0,0],current:[0,0],target:[0,0],masks:[],ops:[],history:[],solved:false,revealed:false,solution:[]};
+const prng=n=>Math.floor(Math.random()*n);
+function practiceOps(masks){
+ return [...masks.map(m=>({name:"XOR "+hex(m),fn:x=>x^m})),{name:"NOT",fn:x=>x^255}];
+}
+function practicePath(from,to,ops){
+ if(from===to)return [];
+ const queue=[from],seen=new Set([from]),prev=new Map();
+ for(let i=0;i<queue.length;i++){
+  const x=queue[i];
+  for(const op of ops){
+   const y=op.fn(x);if(seen.has(y))continue;seen.add(y);prev.set(y,{from:x,op});
+   if(y===to){const path=[];let at=y;while(prev.has(at)){const p=prev.get(at);path.push(p.op);at=p.from;}return path.reverse();}
+   queue.push(y);
+  }
+ }
+ return null;
+}
+function practiceRender(){
+ const root=$("practiceRegisters");root.replaceChildren();
+ for(let r=0;r<2;r++){
+  const box=document.createElement("div");box.className="register";
+  const heading=document.createElement("h2");heading.textContent="R"+r;box.append(heading);
+  for(const type of ["current","target"]){
+   const value=type==="current"?practice.current[r]:practice.target[r];
+   const line=document.createElement("div");line.className="value-row";
+   const label=document.createElement("span");label.className="label";label.textContent=type==="current"?"YOUR REGISTER":"TARGET";
+   const display=document.createElement("span");display.className="hex"+(type==="target"?" targethex":"");display.textContent=hex(value);
+   line.append(label,display);box.append(line);
+   const bits=document.createElement("div");bits.className="bits";
+   for(let bit=7;bit>=0;bit--){
+    const el=document.createElement("span");el.className="bit"+(value&(1<<bit)?" on":"")+(type==="target"?" target":"");
+    el.style.display="grid";el.style.placeItems="center";el.textContent=value&(1<<bit)?"1":"0";bits.append(el);
+   }
+   box.append(bits);
+  }
+  root.append(box);
+ }
+ const operations=$("practiceOperations");operations.replaceChildren();
+ for(let r=0;r<2;r++)for(const op of practice.ops){
+  const button=document.createElement("button");button.className="secondary practice-btn";
+  button.textContent="R"+r+" → "+op.name;button.disabled=!practice.round||practice.solved||practice.revealed;
+  button.addEventListener("click",()=>practiceMove(r,op));operations.append(button);
+ }
+ $("practiceRound").textContent="Round "+practice.round;
+ $("practiceMoves").textContent="Moves: "+practice.history.length;
+ $("practiceWins").textContent="Solved: "+practice.wins;
+ $("practiceUndo").disabled=!practice.history.length||practice.revealed;
+ const list=$("practiceHistory");list.replaceChildren();
+ practice.history.forEach(h=>{const li=document.createElement("li");li.textContent="R"+h.r+" → "+h.name+" ("+hex(h.before)+" → "+hex(h.after)+")";list.append(li);});
+}
+function practiceMove(r,op){
+ if(!practice.round||practice.solved||practice.revealed)return;
+ const before=practice.current[r],after=op.fn(before);
+ practice.history.push({r,name:op.name,before,after});
+ practice.current[r]=after;
+ if(practice.current.every((v,i)=>v===practice.target[i])){
+  practice.solved=true;practice.wins++;
+  $("practiceStatus").innerHTML='<strong class="practice-good">PUZZLE SOLVED!</strong> Completed in '+practice.history.length+' moves. Start another round when ready.';
+ }else $("practiceStatus").textContent="Keep going — apply operations until both registers match the targets.";
+ practiceRender();
+}
+function newPractice(){
+ const difficulty=$("difficulty").value;
+ const ranges={easy:[2,3],medium:[4,5],hard:[6,7]};
+ const [min,max]=ranges[difficulty];
+ let chosen=null;
+ // Generate by random valid operations and verify the actual shortest
+ // solution length, so difficulty reflects meaningful required moves.
+ for(let attempt=0;attempt<350;attempt++){
+  const masks=[1+prng(254),1+prng(254)];
+  if(masks[0]===masks[1]||masks[0]===255||masks[1]===255)continue;
+  const ops=practiceOps(masks),start=[prng(256),prng(256)],target=start.slice();
+  const count=min+prng(max-min+1);
+  for(let i=0;i<count;i++){const r=prng(2),op=ops[prng(ops.length)];target[r]=op.fn(target[r]);}
+  const paths=start.map((v,r)=>practicePath(v,target[r],ops));
+  if(paths.some(p=>p===null))continue;
+  const shortest=paths.reduce((n,p)=>n+p.length,0);
+  if(shortest>=min&&shortest<=max){chosen={masks,ops,start,target,solution:paths};break;}
+ }
+ if(!chosen){
+  $("practiceStatus").textContent="Couldn't generate that difficulty. Try again.";return;
+ }
+ practice.round++;practice.initial=chosen.start.slice();practice.current=chosen.start.slice();
+ practice.target=chosen.target.slice();practice.masks=chosen.masks;practice.ops=chosen.ops;
+ practice.solution=chosen.solution;practice.history=[];practice.solved=false;practice.revealed=false;
+ $("practiceStatus").textContent="New "+difficulty+" puzzle. Allowed operations: "+chosen.ops.map(o=>o.name).join(", ")+". Match both target registers.";
+ practiceRender();
+}
+$("newPractice").onclick=newPractice;
+$("practiceReset").onclick=()=>{
+ if(!practice.round)return;
+ practice.current=practice.initial.slice();practice.history=[];practice.solved=false;practice.revealed=false;
+ $("practiceStatus").textContent="Attempt reset. Try again from the starting values.";practiceRender();
+};
+$("practiceUndo").onclick=()=>{
+ const last=practice.history.pop();if(!last)return;
+ practice.current[last.r]=last.before;
+ if(practice.solved){practice.solved=false;practice.wins=Math.max(0,practice.wins-1);}
+ $("practiceStatus").textContent="Last move undone.";practiceRender();
+};
+$("practiceHint").onclick=()=>{
+ if(!practice.round||practice.revealed)return;
+ const paths=practice.current.map((v,r)=>practicePath(v,practice.target[r],practice.ops));
+ const r=paths.findIndex(p=>p&&p.length);
+ $("practiceStatus").textContent=r<0?"Both registers already match.":"Hint: Try R"+r+" → "+paths[r][0].name+" next.";
+};
+$("practiceReveal").onclick=()=>{
+ if(!practice.round)return;
+ const paths=practice.current.map((v,r)=>practicePath(v,practice.target[r],practice.ops));
+ const steps=paths.flatMap((p,r)=>p.map(op=>"R"+r+" → "+op.name));
+ practice.revealed=true;
+ $("practiceStatus").textContent="Solution from your current position:\n"+(steps.length?steps.map((x,i)=>(i+1)+". "+x).join("\n"):"Already at target.")+"\nGenerate a new puzzle or reset to try again.";
+ practiceRender();
+};
+function switchMode(mode){
+ const practiceMode=mode==="practice";
+ $("solverPane").hidden=practiceMode;$("practicePane").hidden=!practiceMode;
+ $("solverTab").setAttribute("aria-selected",String(!practiceMode));
+ $("practiceTab").setAttribute("aria-selected",String(practiceMode));
+ history.replaceState(null,"",practiceMode?"#practice":"#solver");
+}
+$("solverTab").onclick=()=>switchMode("solver");
+$("practiceTab").onclick=()=>switchMode("practice");
+if(location.hash==="#practice")switchMode("practice");
+practiceRender();
+
 })();
 </script></body></html>
